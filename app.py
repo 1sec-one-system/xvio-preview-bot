@@ -3,7 +3,7 @@ import json
 import subprocess
 import boto3
 from botocore.exceptions import ClientError
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, UploadFile, File
 
 app = FastAPI(title="XVIO WebP Trailer Engine - Most Replayed AI")
 
@@ -159,6 +159,26 @@ def health():
 @app.get("/logs")
 def get_logs():
     return {"status": "ok", "logs": system_logs}
+
+@app.post("/upload")
+async def upload_preview(media_key: str, file: UploadFile = File(...)):
+    if not s3:
+        return {"status": "error", "message": "S3 yapilandirilmamis"}
+    s3_key = f"previews/{media_key}.webp"
+    try:
+        contents = await file.read()
+        s3.put_object(
+            Bucket=BUCKET_NAME,
+            Key=s3_key,
+            Body=contents,
+            ContentType='image/webp',
+            CacheControl='public, max-age=31536000'
+        )
+        log_msg(f"[UPLOAD] {media_key} yerel bilgisayardan basariyla R2'ye aktarildi ({len(contents)//1024} KB)")
+        return {"status": "ready", "url": f"{PUBLIC_DOMAIN}/{s3_key}"}
+    except Exception as e:
+        log_msg(f"[UPLOAD HATA] {media_key}: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.get("/trigger")
 def trigger_preview(media_key: str, yt_id: str, background_tasks: BackgroundTasks):
