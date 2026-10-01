@@ -28,7 +28,13 @@ def find_best_scene_times(yt_id: str) -> tuple[int, int]:
     Milyonlarca insanın en çok tekrar izlediği zirve 9-10 saniyeyi bulur.
     Heatmap yoksa videonun en aksiyonlu %45'lik dilimini seçer.
     """
-    cmd = ['yt-dlp', '--dump-json', '--no-playlist', f'https://www.youtube.com/watch?v={yt_id}']
+    cmd = [
+        'yt-dlp',
+        '--dump-json',
+        '--extractor-args', 'youtube:player_client=visionos,android',
+        '--no-playlist',
+        f'https://www.youtube.com/watch?v={yt_id}'
+    ]
     try:
         res = subprocess.run(cmd, timeout=30, capture_output=True, text=True)
         if res.returncode == 0:
@@ -70,6 +76,7 @@ def create_and_upload_webp(media_key: str, yt_id: str):
     cmd_dl = [
         "yt-dlp",
         "-f", "230/229/604/605/18/best",
+        "--extractor-args", "youtube:player_client=visionos,android",
         "--download-sections", f"*{start_sec}-{end_sec}",
         "-o", clip_file,
         f"https://www.youtube.com/watch?v={yt_id}",
@@ -95,8 +102,23 @@ def create_and_upload_webp(media_key: str, yt_id: str):
         print(f"[BASLADI] {media_key} popüler sahnesi indiriliyor ({start_sec}s - {end_sec}s)...")
         res_dl = subprocess.run(cmd_dl, timeout=50, capture_output=True)
         if res_dl.returncode != 0 or not os.path.exists(clip_file):
+            print(f"[UYARI] {yt_id} indirilemedi, YouTube arama yedeklemesi deneniyor...")
+            search_query = f"ytsearch1:{media_key.replace('_', ' ')} official trailer"
+            cmd_fallback = [
+                "yt-dlp",
+                "-f", "230/229/604/605/18/best",
+                "--extractor-args", "youtube:player_client=visionos,android",
+                "--download-sections", f"*{start_sec}-{end_sec}",
+                "-o", clip_file,
+                search_query,
+                "--force-overwrites",
+                "--no-playlist"
+            ]
+            res_dl = subprocess.run(cmd_fallback, timeout=50, capture_output=True)
+
+        if not os.path.exists(clip_file):
             err = res_dl.stderr.decode('utf-8', errors='ignore') if res_dl.stderr else "Indirme basarisiz"
-            print(f"[HATA] İndirme hatası ({media_key}): {err[-200:]}")
+            print(f"[HATA] İndirme tamamen başarısız ({media_key}): {err[-200:]}")
             return
 
         print(f"[DONUSTURULUYOR] {media_key} WebP yapılıyor...")
