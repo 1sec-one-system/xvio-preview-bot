@@ -22,6 +22,14 @@ if R2_ENDPOINT and R2_KEY and R2_SECRET:
         aws_secret_access_key=R2_SECRET
     )
 
+system_logs = []
+
+def log_msg(msg: str):
+    print(msg, flush=True)
+    system_logs.append(msg)
+    if len(system_logs) > 60:
+        system_logs.pop(0)
+
 def find_best_scene_times(yt_id: str) -> tuple[int, int]:
     """
     YouTube'un 'Most Replayed' (Isı Haritası) verisini analiz eder.
@@ -49,14 +57,14 @@ def find_best_scene_times(yt_id: str) -> tuple[int, int]:
                 # Tepe noktasının 2 saniye öncesinden başlatıp 9 saniye al
                 start = max(15, peak_time - 2)
                 end = min(duration - 2, start + 9)
-                print(f"[HEATMAP] {yt_id} için en popüler an bulundu: {start}. sn - {end}. sn")
+                log_msg(f"[HEATMAP] {yt_id} için en popüler an bulundu: {start}. sn - {end}. sn")
                 return start, end
             else:
                 # Isı haritası yoksa (yeni fragman): %40-%45 dilimini al
                 start = int(duration * 0.42)
                 return start, start + 9
     except Exception as e:
-        print(f"[HEATMAP UYARI] {e}, varsayılan süreye dönülüyor")
+        log_msg(f"[HEATMAP UYARI] {e}, varsayılan süreye dönülüyor")
     
     return 30, 39
 
@@ -99,14 +107,29 @@ def create_and_upload_webp(media_key: str, yt_id: str):
     ]
 
     try:
-        print(f"[BASLADI] {media_key} popüler sahnesi indiriliyor ({start_sec}s - {end_sec}s)...")
+        log_msg(f"[BASLADI] {media_key} popüler sahnesi indiriliyor ({start_sec}s - {end_sec}s)...")
         res_dl = subprocess.run(cmd_dl, timeout=50, capture_output=True)
         if res_dl.returncode != 0 or not os.path.exists(clip_file):
+            log_msg(f"[UYARI] {yt_id} indirilemedi, YouTube arama yedeklemesi deneniyor...")
+            search_query = f"ytsearch1:{media_key.replace('_', ' ')} official trailer"
+            cmd_fallback = [
+                "yt-dlp",
+                "-f", "230/229/604/605/18/best",
+                "--extractor-args", "youtube:player_client=visionos,android",
+                "--download-sections", f"*{start_sec}-{end_sec}",
+                "-o", clip_file,
+                search_query,
+                "--force-overwrites",
+                "--no-playlist"
+            ]
+            res_dl = subprocess.run(cmd_fallback, timeout=50, capture_output=True)
+
+        if not os.path.exists(clip_file):
             err = res_dl.stderr.decode('utf-8', errors='ignore') if res_dl.stderr else "Indirme basarisiz"
-            print(f"[HATA] İndirme hatası ({media_key}): {err[-200:]}")
+            log_msg(f"[HATA] İndirme tamamen başarısız ({media_key}): {err[-200:]}")
             return
 
-        print(f"[DONUSTURULUYOR] {media_key} WebP yapılıyor...")
+        log_msg(f"[DONUSTURULUYOR] {media_key} WebP yapılıyor...")
         res_conv = subprocess.run(cmd_conv, timeout=35, capture_output=True)
         if res_conv.returncode == 0 and os.path.exists(output_webp):
             s3.upload_file(
@@ -115,12 +138,12 @@ def create_and_upload_webp(media_key: str, yt_id: str):
                 s3_key,
                 ExtraArgs={'ContentType': 'image/webp', 'CacheControl': 'public, max-age=31536000'}
             )
-            print(f"[BASARILI] Netflix kalitesinde R2'ye yüklendi: {s3_key}")
+            log_msg(f"[BASARILI] Netflix kalitesinde R2'ye yüklendi: {s3_key}")
         else:
             err = res_conv.stderr.decode('utf-8', errors='ignore') if res_conv.stderr else "Donusturme basarisiz"
-            print(f"[HATA] Dönüştürme hatası ({media_key}): {err[-200:]}")
+            log_msg(f"[HATA] Dönüştürme hatası ({media_key}): {err[-200:]}")
     except Exception as e:
-        print(f"[BEKLENMEYEN HATA] {media_key}: {str(e)}")
+        log_msg(f"[BEKLENMEYEN HATA] {media_key}: {str(e)}")
     finally:
         for f in (clip_file, output_webp):
             if os.path.exists(f):
@@ -133,6 +156,10 @@ def create_and_upload_webp(media_key: str, yt_id: str):
 def health():
     return {"status": "ok", "service": "xvio-preview-bot-most-replayed"}
 
+@app.get("/logs")
+def get_logs():
+    return {"status": "ok", "logs": system_logs}
+
 @app.get("/trigger")
 def trigger_preview(media_key: str, yt_id: str, background_tasks: BackgroundTasks):
     s3_key = f"previews/{media_key}.webp"
@@ -144,6 +171,7 @@ def trigger_preview(media_key: str, yt_id: str, background_tasks: BackgroundTask
         except ClientError:
             pass
 
+    log_msg(f"[TRIGGER] {media_key} ({yt_id}) kuyruğa alındı")
     background_tasks.add_task(create_and_upload_webp, media_key, yt_id)
     return {"status": "processing", "url": f"{PUBLIC_DOMAIN}/{s3_key}"}
 
