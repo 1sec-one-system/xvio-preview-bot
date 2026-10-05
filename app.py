@@ -170,13 +170,19 @@ async def fetch_torrentio_torbox(media_type: str, stream_id: str, client: httpx.
         return []
     url = f"https://torrentio.strem.fun/torbox={TORBOX_API_KEY}/stream/{media_type}/{stream_id}.json"
     try:
-        resp = await client.get(url, timeout=6.0)
+        resp = await client.get(url, timeout=7.0, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Accept": "application/json"
+        })
         if resp.status_code == 200:
             data = resp.json()
             streams = data.get("streams", [])
             for s in streams:
                 s["addon_source"] = "torrentio_torbox"
+            log_msg(f"[TORRENTIO] {len(streams)} akış çekildi ({media_type}/{stream_id})")
             return streams
+        else:
+            log_msg(f"[TORRENTIO UYARI] HTTP {resp.status_code}: {resp.text[:80]}")
     except Exception as e:
         log_msg(f"[TORRENTIO HATA] {media_type}/{stream_id}: {e}")
     return []
