@@ -323,6 +323,25 @@ async def get_torbox_status(request: Request, token: Optional[str] = Query(None)
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@app.get("/debug/torrentio")
+async def debug_torrentio(imdb_id: str = "tt1375666"):
+    url = f"https://torrentio.strem.fun/torbox={TORBOX_API_KEY}/stream/movie/{imdb_id}.json"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+    }
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            resp = await client.get(url, headers=headers)
+            return {
+                "status_code": resp.status_code,
+                "url": url,
+                "headers": dict(resp.headers),
+                "text": resp.text[:500]
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
 # -------------------------------------------------------------
 # 🎬 MEVCUT R2 WEBP & SAĞLIK DENETİMİ ENDPOINTLERİ
 # -------------------------------------------------------------
