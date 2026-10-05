@@ -165,12 +165,14 @@ def score_stream(stream: Dict[str, Any], target_season: Optional[int] = None, ta
 # -------------------------------------------------------------
 # ⚡ PARALEL KAZIYICI MOTORU (TORBOX + TORRENTIO + COMET)
 # -------------------------------------------------------------
+TORRENTIO_PARAMS = "providers=yts,eztv,rarbg,1337x,thepiratebay,torrentgalaxy,magnetdl|sort=qualitysize|qualityfilter=cam,scr,unknown|debridoptions=nodownloadlinks,nocatalog"
+
 async def fetch_torrentio_torbox(media_type: str, stream_id: str, client: httpx.AsyncClient) -> List[Dict[str, Any]]:
     if not TORBOX_API_KEY:
         return []
-    url = f"https://torrentio.strem.fun/torbox={TORBOX_API_KEY}/stream/{media_type}/{stream_id}.json"
+    url = f"https://torrentio.strem.fun/{TORRENTIO_PARAMS}|torbox={TORBOX_API_KEY}/stream/{media_type}/{stream_id}.json"
     try:
-        resp = await client.get(url, timeout=7.0, headers={
+        resp = await client.get(url, timeout=8.0, headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
             "Accept": "application/json"
         })
@@ -325,7 +327,7 @@ async def get_torbox_status(request: Request, token: Optional[str] = Query(None)
 
 @app.get("/debug/torrentio")
 async def debug_torrentio(imdb_id: str = "tt1375666"):
-    url = f"https://torrentio.strem.fun/torbox={TORBOX_API_KEY}/stream/movie/{imdb_id}.json"
+    url = f"https://torrentio.strem.fun/{TORRENTIO_PARAMS}|torbox={TORBOX_API_KEY}/stream/movie/{imdb_id}.json"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
         "Accept": "application/json"
