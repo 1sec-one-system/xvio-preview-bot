@@ -1,0 +1,16 @@
+config.json
+status.json
+*.log
+__pycache__/
+previews/
+*.mp4
+*.webp
+*.mkv
+make_*.py
+test_*.py
+clean_*.py
+check_*.py
+dk_*.mkv
+raw_*.mp4
+the_dark_knight_*.mp4
+batman_*
